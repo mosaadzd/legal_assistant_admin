@@ -5,6 +5,18 @@
 html, body, #root { height: 100%; }
 body { @apply bg-gray-50 text-gray-900 antialiased; }
 
+/* Subtle animations */
+.animate-fade-in { animation: fade-in .25s ease both; }
+@keyframes fade-in { from { opacity:0; transform: translateY(2px);} to {opacity:1; transform: translateY(0);} }
+
+/* Table utility classes (can't use @apply in this environment) */
+.table-soft thead th { background-color: rgba(243,244,246,0.7); font-weight:600; color:#4b5563; font-size:11px; text-transform:uppercase; letter-spacing:0.05em; }
+.table-soft tbody td { font-size:12px; }
+
+/* Focus ring helper */
+.focus-outline { outline: 2px solid transparent; outline-offset:2px; }
+.focus-outline:focus { box-shadow:0 0 0 2px rgba(96,165,250,0.6); }
+
 /* Scrollbar styling */
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-thumb { background: theme('colors.gray.300'); border-radius: 9999px; }

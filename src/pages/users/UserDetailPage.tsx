@@ -2,6 +2,8 @@ import { useParams } from 'react-router-dom';
 import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminApi } from '../../lib/apiClient';
+import { useToast } from '../../context/ToastContext';
+import { exportToCsv, exportToJson } from '../../lib/exportUtils';
 
 const tabs = [
   { key: 'profile', label: 'Profile' },
@@ -18,6 +20,7 @@ const tabs = [
 
 export default function UserDetailPage() {
   const { id } = useParams();
+  const { push: pushToast } = useToast();
   const [tab, setTab] = useState('profile');
   const qc = useQueryClient();
   const [logsDays, setLogsDays] = useState(7);
@@ -62,9 +65,21 @@ export default function UserDetailPage() {
   const documentsQ = useQuery<any[]>({ enabled: !!id && tab==='documents', queryKey: ['documents', id, listLimit, listOffset], queryFn: () => adminApi.userDocuments(id!, { limit: listLimit, offset: listOffset }) });
   const formsQ = useQuery<any[]>({ enabled: !!id && tab==='forms', queryKey: ['forms', id, listLimit, listOffset], queryFn: () => adminApi.userForms(id!, { limit: listLimit, offset: listOffset }) });
 
-  const updatePlanMut = useMutation({ mutationFn: () => adminApi.updateUserPlan(id!, planEdit), onSuccess: () => { qc.invalidateQueries({ queryKey: ['user-detail', id]}); }});
-  const updateFeaturesMut = useMutation({ mutationFn: () => adminApi.updateUserFeatures(id!, featureDraft), onSuccess: () => { qc.invalidateQueries({ queryKey: ['user-detail', id]}); }});
-  const updateRolesMut = useMutation({ mutationFn: () => adminApi.updateUserRoles(id!, rolesDraft.split(',').map(r=>r.trim()).filter(Boolean)), onSuccess: () => { qc.invalidateQueries({ queryKey: ['user-detail', id]}); }});
+  const updatePlanMut = useMutation({
+    mutationFn: () => adminApi.updateUserPlan(id!, planEdit),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['user-detail', id]}); pushToast({ type: 'success', message: 'Plan updated'}); },
+    onError: () => pushToast({ type: 'error', message: 'Failed to update plan'})
+  });
+  const updateFeaturesMut = useMutation({
+    mutationFn: () => adminApi.updateUserFeatures(id!, featureDraft),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['user-detail', id]}); pushToast({ type: 'success', message: 'Features saved'}); },
+    onError: () => pushToast({ type: 'error', message: 'Failed to save features'})
+  });
+  const updateRolesMut = useMutation({
+    mutationFn: () => adminApi.updateUserRoles(id!, rolesDraft.split(',').map(r=>r.trim()).filter(Boolean)),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['user-detail', id]}); pushToast({ type: 'success', message: 'Roles saved'}); },
+    onError: () => pushToast({ type: 'error', message: 'Failed to save roles'})
+  });
 
   const planFeatureKeys = useMemo(()=>{ if (!plansQ.data) return []; const pk = planEdit?.toLowerCase(); const planCfg = (plansQ.data as any)[pk] || {}; return Object.keys(planCfg.features||{}); }, [plansQ.data, planEdit]);
 
@@ -90,6 +105,7 @@ export default function UserDetailPage() {
           <div className="grid gap-6 md:grid-cols-2">
             <div className="bg-white border rounded-lg p-4 space-y-2">
               <h3 className="font-medium text-sm text-gray-700">Account</h3>
+              {detailQ.isLoading && <div className="h-16 mb-2 rounded bg-gray-100 animate-pulse" />}
               {detailQ.isLoading && <div className="text-xs text-gray-500">Loading...</div>}
               {detailQ.data && (
                 <ul className="text-xs space-y-1">
@@ -122,7 +138,20 @@ export default function UserDetailPage() {
             <h3 className="font-medium text-sm mb-4">Usage Summary (30d)</h3>
             {summaryQ.isLoading && <div className="text-xs text-gray-500">Loading...</div>}
             {summaryQ.data && (
-              <div className="overflow-auto">
+              <>
+                <div className="flex items-center justify-end gap-2 mb-2">
+                  <button onClick={()=> exportToCsv(summaryQ.data.by_service, [
+                    { key: 'service', header: 'Service' },
+                    { key: 'prompt_tokens', header: 'Prompt' },
+                    { key: 'output_tokens', header: 'Output' },
+                    { key: 'thoughts_tokens', header: 'Thoughts' },
+                    { key: 'cached_tokens', header: 'Cached' },
+                    { key: 'total_tokens', header: 'Total Tokens' },
+                    { key: 'calls', header: 'Calls' }
+                  ], `user-${id}-usage-summary`)} className="h-7 px-3 rounded border text-[11px]">CSV</button>
+                  <button onClick={()=> exportToJson(summaryQ.data, `user-${id}-usage-summary`)} className="h-7 px-3 rounded border text-[11px]">JSON</button>
+                </div>
+                <div className="overflow-auto">
                 <table className="min-w-full text-xs">
                   <thead>
                     <tr className="text-left bg-gray-50">
@@ -160,7 +189,8 @@ export default function UserDetailPage() {
                     </tr>
                   </tfoot>
                 </table>
-              </div>
+                </div>
+              </>
             )}
           </div>
         )}
@@ -180,6 +210,17 @@ export default function UserDetailPage() {
                 <input type="number" value={logsLimit} onChange={e=>setLogsLimit(Number(e.target.value))} className="h-8 w-24 border rounded px-2 text-xs" />
               </div>
               <button onClick={()=>logsQ.refetch()} className="h-8 px-3 rounded bg-brand-600 text-white text-xs font-medium">Reload</button>
+              <button disabled={!logsQ.data?.length} onClick={()=> logsQ.data && exportToCsv(logsQ.data, [
+                { key: 'created_at', header: 'Time' },
+                { key: 'service' },
+                { key: 'model' },
+                { key: 'prompt_tokens', header: 'Prompt' },
+                { key: 'output_tokens', header: 'Output' },
+                { key: 'thoughts_tokens', header: 'Thoughts' },
+                { key: 'cached_tokens', header: 'Cached' },
+                { key: 'total_tokens', header: 'Total' },
+              ], `user-${id}-token-logs`)} className="h-8 px-3 rounded border text-xs disabled:opacity-40">CSV</button>
+              <button disabled={!logsQ.data?.length} onClick={()=> logsQ.data && exportToJson(logsQ.data, `user-${id}-token-logs`)} className="h-8 px-3 rounded border text-xs disabled:opacity-40">JSON</button>
               {logsQ.isFetching && <div className="text-[10px] text-gray-500">Loading...</div>}
             </div>
             <div className="overflow-auto max-h-[480px] border rounded">
@@ -226,7 +267,6 @@ export default function UserDetailPage() {
                 </select>
               </div>
               <button disabled={updatePlanMut.isPending} onClick={()=>updatePlanMut.mutate()} className="h-9 px-4 rounded bg-brand-600 text-white text-xs font-medium disabled:opacity-50">{updatePlanMut.isPending?'Saving...':'Update Plan'}</button>
-              {updatePlanMut.isSuccess && !updatePlanMut.isPending && <span className="text-[10px] text-green-600">Saved</span>}
             </div>
             <div>
               <h4 className="font-medium text-sm mb-2">Feature Overrides</h4>
@@ -240,13 +280,12 @@ export default function UserDetailPage() {
               </div>
               <div className="mt-3 flex gap-2 items-center">
                 <button disabled={updateFeaturesMut.isPending} onClick={()=>updateFeaturesMut.mutate()} className="h-8 px-3 rounded bg-brand-600 text-white text-xs disabled:opacity-50">{updateFeaturesMut.isPending? 'Saving...' : 'Save Features'}</button>
-                {updateFeaturesMut.isSuccess && !updateFeaturesMut.isPending && <span className="text-[10px] text-green-600">Saved</span>}
               </div>
             </div>
             {plansQ.isLoading && <div className="text-xs text-gray-500">Loading plan catalog...</div>}
           </div>
         )}
-        {tab === 'roles' && (
+    {tab === 'roles' && (
           <div className="bg-white border rounded-lg p-4 space-y-4">
             <div>
               <label className="block text-[10px] uppercase tracking-wide text-gray-500">Roles (comma separated)</label>
@@ -254,15 +293,14 @@ export default function UserDetailPage() {
               <p className="mt-1 text-[10px] text-gray-500">Include 'admin' to grant dashboard access.</p>
             </div>
             <div className="flex gap-2 items-center">
-              <button disabled={updateRolesMut.isPending} onClick={()=>updateRolesMut.mutate()} className="h-9 px-4 rounded bg-brand-600 text-white text-xs disabled:opacity-50">{updateRolesMut.isPending? 'Saving...' : 'Save Roles'}</button>
-              {updateRolesMut.isSuccess && !updateRolesMut.isPending && <span className="text-[10px] text-green-600">Saved</span>}
+      <button disabled={updateRolesMut.isPending} onClick={()=>updateRolesMut.mutate()} className="h-9 px-4 rounded bg-brand-600 text-white text-xs disabled:opacity-50">{updateRolesMut.isPending? 'Saving...' : 'Save Roles'}</button>
             </div>
             {detailQ.data && (
               <div className="text-[11px] text-gray-600">Current: {(detailQ.data.roles||[]).join(', ') || '—'}</div>
             )}
           </div>
         )}
-        {tab === 'chat' && (
+  {tab === 'chat' && (
           <div className="bg-white border rounded-lg p-4 space-y-4">
             <div className="flex flex-wrap gap-3 items-end">
               <div>
@@ -335,9 +373,22 @@ export default function UserDetailPage() {
                 </tbody>
               </table>
             </div>
+            <div className="flex items-center justify-end gap-2">
+              <button disabled={listOffset===0} onClick={()=>setListOffset(o=> Math.max(0, o - listLimit))} className="h-8 px-3 rounded border text-xs disabled:opacity-40">Prev</button>
+              <span className="text-[10px] text-gray-500">Offset {listOffset}</span>
+              <button disabled={!chatSessionsQ.data || chatSessionsQ.data.length < listLimit} onClick={()=>setListOffset(o=> o + listLimit)} className="h-8 px-3 rounded border text-xs disabled:opacity-40">Next</button>
+              <button disabled={!chatSessionsQ.data?.length} onClick={()=> chatSessionsQ.data && exportToCsv(chatSessionsQ.data, [
+                { key: 'session_id', header: 'Session' },
+                { key: 'message_count', header: 'Messages' },
+                { key: 'search_count', header: 'Searches' },
+                { key: 'status', header: 'Status' },
+                { key: 'last_activity', header: 'Last Activity' }
+              ], `user-${id}-chat-sessions`)} className="h-8 px-3 rounded border text-xs disabled:opacity-40">CSV</button>
+              <button disabled={!chatSessionsQ.data?.length} onClick={()=> chatSessionsQ.data && exportToJson(chatSessionsQ.data, `user-${id}-chat-sessions`)} className="h-8 px-3 rounded border text-xs disabled:opacity-40">JSON</button>
+            </div>
           </div>
         )}
-        {tab === 'analysis' && (
+  {tab === 'analysis' && (
           <div className="bg-white border rounded-lg p-4 space-y-4">
             <div className="flex items-center gap-3">
               <label className="text-[10px] uppercase tracking-wide text-gray-500">Limit</label>
@@ -367,9 +418,14 @@ export default function UserDetailPage() {
                 </tbody>
               </table>
             </div>
+            <div className="flex items-center justify-end gap-2">
+              <button disabled={listOffset===0} onClick={()=>setListOffset(o=> Math.max(0, o - listLimit))} className="h-8 px-3 rounded border text-xs disabled:opacity-40">Prev</button>
+              <span className="text-[10px] text-gray-500">Offset {listOffset}</span>
+              <button disabled={!analysesQ.data || analysesQ.data.length < listLimit} onClick={()=>setListOffset(o=> o + listLimit)} className="h-8 px-3 rounded border text-xs disabled:opacity-40">Next</button>
+            </div>
           </div>
         )}
-        {tab === 'cases' && (
+  {tab === 'cases' && (
           <div className="bg-white border rounded-lg p-4 space-y-4">
             <div className="flex items-center gap-3">
               <label className="text-[10px] uppercase tracking-wide text-gray-500">Limit</label>
@@ -401,9 +457,14 @@ export default function UserDetailPage() {
                 </tbody>
               </table>
             </div>
+            <div className="flex items-center justify-end gap-2">
+              <button disabled={listOffset===0} onClick={()=>setListOffset(o=> Math.max(0, o - listLimit))} className="h-8 px-3 rounded border text-xs disabled:opacity-40">Prev</button>
+              <span className="text-[10px] text-gray-500">Offset {listOffset}</span>
+              <button disabled={!casesQ.data || casesQ.data.length < listLimit} onClick={()=>setListOffset(o=> o + listLimit)} className="h-8 px-3 rounded border text-xs disabled:opacity-40">Next</button>
+            </div>
           </div>
         )}
-        {tab === 'documents' && (
+  {tab === 'documents' && (
           <div className="bg-white border rounded-lg p-4 space-y-4">
             <div className="flex items-center gap-3">
               <label className="text-[10px] uppercase tracking-wide text-gray-500">Limit</label>
@@ -435,9 +496,14 @@ export default function UserDetailPage() {
                 </tbody>
               </table>
             </div>
+            <div className="flex items-center justify-end gap-2">
+              <button disabled={listOffset===0} onClick={()=>setListOffset(o=> Math.max(0, o - listLimit))} className="h-8 px-3 rounded border text-xs disabled:opacity-40">Prev</button>
+              <span className="text-[10px] text-gray-500">Offset {listOffset}</span>
+              <button disabled={!documentsQ.data || documentsQ.data.length < listLimit} onClick={()=>setListOffset(o=> o + listLimit)} className="h-8 px-3 rounded border text-xs disabled:opacity-40">Next</button>
+            </div>
           </div>
         )}
-        {tab === 'forms' && (
+  {tab === 'forms' && (
           <div className="bg-white border rounded-lg p-4 space-y-4">
             <div className="flex items-center gap-3">
               <label className="text-[10px] uppercase tracking-wide text-gray-500">Limit</label>
@@ -468,6 +534,11 @@ export default function UserDetailPage() {
                   ))}
                 </tbody>
               </table>
+            </div>
+            <div className="flex items-center justify-end gap-2">
+              <button disabled={listOffset===0} onClick={()=>setListOffset(o=> Math.max(0, o - listLimit))} className="h-8 px-3 rounded border text-xs disabled:opacity-40">Prev</button>
+              <span className="text-[10px] text-gray-500">Offset {listOffset}</span>
+              <button disabled={!formsQ.data || formsQ.data.length < listLimit} onClick={()=>setListOffset(o=> o + listLimit)} className="h-8 px-3 rounded border text-xs disabled:opacity-40">Next</button>
             </div>
           </div>
         )}

@@ -1,10 +1,18 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { adminApi } from '../lib/apiClient';
 
+export interface AuthUser {
+  id: string;
+  email: string;
+  is_superuser?: boolean;
+  roles?: string[];
+  [k: string]: any; // allow additional backend fields
+}
+
 interface AuthState {
   loading: boolean;
   authenticated: boolean;
-  user: any | null;
+  user: AuthUser | null;
   login: (email: string, password: string) => Promise<boolean>;
   logout: () => void;
 }
@@ -13,7 +21,7 @@ const AuthContext = createContext<AuthState | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
-  const [user, setUser] = useState<any | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
 
   useEffect(() => {
     const token = localStorage.getItem('admin_token');

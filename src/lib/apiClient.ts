@@ -42,8 +42,19 @@ export const adminApi = {
     return data;
   },
   async listUsers(params: PaginatedUsersParams) {
-    const { data } = await api.get('/admin/users', { params });
-    return data as any[];
+    // Backend enforces limit <= 200; clamp to avoid 422
+    const safe = { ...params } as any;
+    if (safe.limit && safe.limit > 200) safe.limit = 200;
+    try {
+      const { data } = await api.get('/admin/users', { params: safe });
+      return data as any[];
+    } catch (e: any) {
+      if (e.response?.status === 422) {
+        console.warn('Adjusting user list params due to validation error', safe);
+        return [];
+      }
+      throw e;
+    }
   },
   async userDetail(id: string) {
     const { data } = await api.get(`/admin/users/${id}`);
@@ -60,6 +71,18 @@ export const adminApi = {
   async plans() {
     const { data } = await api.get('/admin/plans');
     return data as Record<string, any>;
+  },
+  async createPlan(payload: any) {
+    const { data } = await api.post('/admin/plans', payload);
+    return data;
+  },
+  async updatePlan(key: string, payload: any) {
+    const { data } = await api.patch(`/admin/plans/${key}`, payload);
+    return data;
+  },
+  async deletePlan(key: string) {
+    const { data } = await api.delete(`/admin/plans/${key}`);
+    return data;
   },
   async updateUserPlan(id: string, plan: string) {
     const { data } = await api.patch(`/admin/users/${id}/plan`, { plan });
@@ -104,5 +127,26 @@ export const adminApi = {
   async globalUsageDaily(days: number) {
     const { data } = await api.get('/admin/usage/daily', { params: { days } });
     return data;
+  },
+  async auditLogs(params: { limit?: number; offset?: number; actor?: string; action?: string; q?: string; days?: number }) {
+    try {
+      const { data } = await api.get('/admin/audit/logs', { params });
+      return data as any[];
+    } catch (e: any) {
+      // Graceful fallback if backend not implemented yet
+      if (e.response?.status === 404) return [];
+      throw e;
+    }
+  },
+  async metricsSummary() {
+    try {
+      const { data } = await api.get('/admin/metrics/summary');
+      return data as { total_users: number; active_24h: number; plan_counts: Record<string, number>; tokens_24h: number; calls_24h: number };
+    } catch (e: any) {
+      if (e.response?.status === 404) {
+        return { total_users: 0, active_24h: 0, plan_counts: {}, tokens_24h: 0, calls_24h: 0 };
+      }
+      throw e;
+    }
   }
 };

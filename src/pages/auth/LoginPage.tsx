@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../context/ToastContext';
 
 export default function LoginPage() {
   const { login } = useAuth();
+  const { push: pushToast } = useToast();
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -15,11 +17,8 @@ export default function LoginPage() {
     e.preventDefault();
     setError(null); setLoading(true);
     const ok = await login(email.trim(), password);
-    if (!ok) {
-      setError('Invalid credentials or insufficient privileges');
-      setLoading(false);
-      return;
-    }
+  if (!ok) { setError('Invalid credentials or insufficient privileges'); setLoading(false); pushToast({ type: 'error', message: 'Login failed'}); return; }
+  pushToast({ type: 'success', message: 'Welcome back' });
     navigate('/dashboard', { replace: true });
   }
 
