@@ -1,49 +1,76 @@
 # Legal Assistant Admin Dashboard
 
-Central administrative interface for the Legal Assistant platform: manage users, subscriptions, roles, usage analytics, and review user activity (chat, analyses, cases, documents, forms, token logs).
+Administrative UI for the Legal Assistant platform: manage users, subscriptions & plans, roles, usage analytics, and review user activity (chat, analyses, cases, documents, forms, token logs) plus security audit events.
 
 ## ✅ Current Status (Implemented)
 Core Platform:
-- Modern stack: React 18 + TypeScript + Vite + Tailwind CSS.
-- Central `AuthContext` with JWT login against backend (`/auth/jwt/login`).
-- Role-based access (requires superuser or `admin` role; backend enforces via `ensure_admin`).
+- React 18 + TypeScript + Vite + Tailwind CSS.
+- Central `AuthContext` (JWT login via `/auth/jwt/login`).
+- Role gate (superuser or `admin`), enforced server-side.
+- Global toast notification system (success / error / info / warning) via `ToastContext` + portal.
+
+Plans & Subscriptions:
+- Dynamic Plan CRUD UI (create, edit, delete) with portal modal + body scroll lock.
+- Auto‑materializes static catalog entries on first edit; merged static + dynamic catalog (prevents disappearing defaults).
+- Full marketing + quota fields: key, name, tagline, price, quotas (API calls / tokens), trial days, feature flags.
+- Bilingual metadata fields (EN / AR) for name, tagline, description with per‑field fallbacks.
+- Feature flag toggles with visual state; persisted via backend PATCH.
+
+Dashboard & Metrics:
+- Summary metrics cards (total users, active 24h, tokens 24h, API calls 24h, plan counts) polling every 60s.
+- Quick navigation to plan management.
 
 User Management:
-- Users list with search (email or id substring) & pagination controls.
-- User detail page with tabbed layout (Profile, Usage Summary, Token Logs, Chat History, Analyses, Cases, Documents, Forms, Plan & Features, Roles).
-- Inline plan selection + feature flag override editor (reads plan catalog from `/admin/plans`).
-- Roles editor (comma separated, persists via PATCH to `/admin/users/{id}/roles`).
+- Users list with search (email or id substring) & limit controls.
+- Detail page with tabs: Profile, Usage Summary, Token Logs, Chat History, Analyses, Cases, Documents, Forms, Plan & Features, Roles, (plus early Audit exposure where linked).
+- Inline plan assignment + per‑user feature override editor.
+- Roles editing (comma separated) persisted via `/admin/users/{id}/roles`.
 
 Usage & Analytics:
-- Global usage charts (per-service bar, distribution pie, daily token trends) using Recharts.
-- Per-user 30‑day usage aggregation (token class + calls) with totals.
-- Token logs viewer (filter by days, service, limit) sorted newest first.
+- Global usage charts (bar / distribution / daily trends) using Recharts.
+- Per‑user 30‑day aggregation (token classes + calls) with totals.
+- Token logs viewer with filters (days, service, limit) newest first.
 
-User Activity History:
-- Chat sessions table (status, message count, last activity) with expandable message viewer & adjustable message limit.
-- Analyses list (snippet, case id, timestamp).
+Activity History:
+- Chat sessions (status, message count, last activity) + expandable messages with adjustable limit.
+- Analyses list (snippet + metadata).
 - Cases list (type, status, timestamps).
 - Documents list (file name, type, size KB, uploaded timestamp).
 - Forms list (title, form type, case linkage).
 
-Backend Admin API Coverage (consumed):
-- Plans: `GET /admin/plans`
-- Users: list/detail/plan/features/roles updates
-- Usage: per-user summary & logs, global by-service & daily
-- History: chat sessions, chat messages, analyses, cases, documents, forms
+Audit & Security:
+- Audit Logs page with filtering (actor, action, days, limit) & pagination offset.
+- CSV / JSON export of audit events (graceful 404 handling if backend not yet deployed).
+
+Data Export Utilities:
+- Reusable CSV / JSON export helpers (`exportUtils.ts`).
+- Integrated export buttons on Audit Logs (extensible to other tables).
+
+UI/UX Enhancements:
+- Reusable `<DataTable />` with client‑side sorting, skeleton loaders, zebra stripes, sticky header.
+- Reusable `<Card />` for plan & dashboard metrics display.
+- Loading skeletons for plans grid & tables.
+- Portal modal with high z‑index and animation to avoid stacking issues.
 
 Developer Tooling:
-- Centralized Axios API client with auth interceptor + auto redirect on 401.
-- React Query caching keyed per tab/state (supports refetch + param changes).
-- TypeScript 5 strict build (tsc passes).
+- Centralized Axios API client (auto auth header + 401 redirect).
+- React Query for cache + param keying.
+- Strict TypeScript build (passing).
+
+Internationalization (Plans):
+- EN/AR fields for name, tagline, description stored and surfaced in API responses.
+- Frontend inputs for bilingual fields (with RTL input styling for Arabic).
 
 ## 🧱 Project Structure (front-end)
 Key dirs:
-- `src/context` – authentication context
-- `src/lib/apiClient.ts` – lightweight hand-written API client methods
-- `src/pages` – route-level components (users, analytics, auth)
-- `src/pages/users/UserDetailPage.tsx` – multi-tab detail hub
-- `src/pages/analytics/UsageAnalyticsPage.tsx` – global charts
+- `src/context` – `AuthContext`, `ToastContext`.
+- `src/lib/apiClient.ts` – API layer (admin endpoints) & `exportUtils.ts`.
+- `src/components/ui` – shared UI (`Card`, `DataTable`).
+- `src/pages/dashboard` – summary metrics.
+- `src/pages/plans` – dynamic plan management (`PlansPage.tsx`).
+- `src/pages/audit` – audit log viewer.
+- `src/pages/users` – user list & detail tabs.
+- `src/pages/analytics` – usage charts.
 
 ## 🚀 Getting Started
 Install dependencies:
@@ -65,40 +92,41 @@ Ensure backend is running with the admin routes enabled and your operator accoun
 2. Promote a user to admin: run the backend promotion script to set `is_superuser` or add `admin` to `roles`.
 3. Frontend stores token in `localStorage` under `admin_token`.
 
-## 🖥️ UI / UX Principles Implemented
-- Consistent compact tables with zebra/hover & sticky headers where useful.
-- Low-noise, data-first layouts (emphasis on time, counts, status badges).
-- Incremental loading & refetch indicators (lightweight status badges).
-- Separation of summary (aggregates) vs detail (logs/history) via tabs.
+## 🖥️ UI / UX Principles
+- Compact data-first tables (zebra, hover, sticky headers).
+- Progressive disclosure (summary cards → detailed tabs).
+- Skeleton loaders & subtle loading indicators instead of spinners.
+- Toast feedback for mutations & error states.
+- Accessible color contrasts & semantic badges.
 
-## 🗺️ Remaining Roadmap
+## 🗺️ Roadmap / Next Steps
 High Priority:
-1. Pagination (offset/next/prev) controls for history tabs (currently limit only).
-2. CSV / JSON export for: token logs, usage summaries, chat transcripts, analyses, documents listing.
-3. Per-user visualizations (mini charts on Usage and maybe Chat activity timeline).
-4. Toast notification system (success/error) & global error boundary.
-5. Loading skeleton components (improve perceived performance).
+1. Extend CSV / JSON export to: token logs, per-user usage summary, chat transcripts, analyses, documents, forms.
+2. Add pagination (offset + prev/next) to all history tabs (parity with audit logs implementation style).
+3. Input validation & constraints for plan modal (price pattern, min/max quotas, feature key whitelist enforcement).
+4. Language preview toggle (switch between EN/AR preview in plan cards) & potential feature name localization.
+5. Global error boundary + fallback UI.
 
 Medium Priority:
-6. Advanced filters (date range pickers, status filters, case type, file type).
-7. Drill-down modals (full analysis text, document metadata preview, full chat thread with scroll & search).
-8. Audit Logs module (backend model + endpoints + UI viewer) – not yet started.
-9. Global search across users / sessions / analyses.
-10. Dark mode toggle + theming tokens.
+6. Advanced filters (date range, status, type filters across history tabs).
+7. Drill-down modals (full analysis text, document metadata preview, full chat thread search & scroll).
+8. Global cross-entity search (users / sessions / analyses / documents).
+9. Dark mode & theme token system.
+10. Caching layer or SWR for static/rarely changing data (plan catalog) to reduce network chatter.
 
 Lower Priority / Enhancements:
-11. Bulk operations (plan upgrade, role assignment to multiple users).
-12. Tagging / labeling system for cases or sessions.
-13. Session metrics charts (messages/day, average tokens per call).
-14. Access revocation / soft delete flows.
-15. Optimistic updates & inline validation for forms.
+11. Bulk operations (mass role assignment / plan upgrade).
+12. Tagging system (cases, sessions) + filtering by tags.
+13. Session analytics mini charts (messages/day, tokens/session distribution).
+14. Soft delete + restore flows with audit entries.
+15. Optimistic UI for role / feature edits & inline validation hints.
 
 Technical Hygiene / DX:
-16. Generate TypeScript types from backend OpenAPI spec (replace `any`).
-17. Add ESLint + Prettier config and CI check.
-18. Add Vitest / React Testing Library for critical components (auth flow, analytics charts).
-19. Implement environment-based config & safe defaults for production build.
-20. Bundle analysis & performance budgets.
+16. Generate TypeScript types from backend OpenAPI (reduce `any`).
+17. Add ESLint + Prettier + CI (format + type + test pipeline).
+18. Add test coverage (auth flow, plan CRUD, export utilities) via Vitest & React Testing Library.
+19. Env config hardening (production build flags, security headers guidance).
+20. Bundle analysis & performance budgets (e.g. `rollup-plugin-visualizer`).
 
 ## 📦 Deployment Notes
 - Enforce Node >= 18.18 (already specified in `engines`).
@@ -106,15 +134,16 @@ Technical Hygiene / DX:
 - Serve via a static host (Vite build outputs to `dist/`).
 
 ## 🧩 Extensibility Hooks
-- API methods are modular; adding a new admin endpoint requires only one addition in `apiClient.ts` and a tab/component.
-- Tables can be abstracted later into a reusable `<DataTable />` with sorting & export.
+- Adding a new admin endpoint: add API method → create page/tab → leverage `DataTable` / export utilities.
+- Feature flags & plan fields are easily extendable; backend merge strategy isolates static vs dynamic concerns.
+- Toast system pluggable for future mutation handlers.
 
-## 🛠 Quick Dev Tasks (Suggested Order)
-1. Add pagination state (offset + next/prev) for history tables.
-2. Introduce toast system (simple context + portal) and wrap mutations.
-3. Export helpers (convert arrays to CSV, trigger download).
-4. Add OpenAPI types generation (e.g. `openapi-typescript`) and refactor API responses.
-5. Add dark mode (class-based toggle + Tailwind `dark:` variants).
+## 🛠 Quick Wins (Suggested Near-Term Sequence)
+1. Export support to remaining data tables (reuse `exportUtils`).
+2. Add validation layer to Plan form (user feedback inline + disabled submit until clean).
+3. Pagination reuse (abstract offset/limit state hook) across history tabs.
+4. OpenAPI type generation & replacing loose typings.
+5. Dark mode implementation.
 
 ## 🤝 Contribution Guidelines (Draft)
 - Keep components focused; colocate minor hooks.
@@ -123,5 +152,5 @@ Technical Hygiene / DX:
 - Avoid premature abstraction; extract only after 2–3 duplications.
 
 ---
-This README reflects the current implementation snapshot and an actionable roadmap to reach a polished, production-ready admin experience.
+This README reflects the current implementation snapshot (including dynamic bilingual plan management, dashboard metrics, audit logs, exports, and toast notifications) and an updated roadmap toward production readiness.
 
