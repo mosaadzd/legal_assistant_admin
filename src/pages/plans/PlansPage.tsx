@@ -13,7 +13,7 @@ interface PlanFormState {
   name_ar?: string;
   tagline_en?: string;
   tagline_ar?: string;
-  price_monthly?: string;
+  price_monthly?: string; // stored as string for input, converted on submit
   monthly_api_quota: number;
   monthly_tokens_quota: number;
   trial_days: number;
@@ -21,9 +21,13 @@ interface PlanFormState {
   description_en?: string;
   description_ar?: string;
   features: Record<string, boolean>;
+  daily_message_limit?: number | null; // null or undefined => unlimited
 }
-
-const emptyPlan = (): PlanFormState => ({ key: '', name: '', tagline: '', name_en: '', name_ar: '', tagline_en: '', tagline_ar: '', price_monthly: '', monthly_api_quota: 0, monthly_tokens_quota: 0, trial_days: 0, description: '', description_en: '', description_ar: '', features: {} });
+const emptyPlan = (): PlanFormState => ({
+  key: '', name: '', tagline: '', name_en: '', name_ar: '', tagline_en: '', tagline_ar: '',
+  price_monthly: '', monthly_api_quota: 0, monthly_tokens_quota: 0, trial_days: 0,
+  description: '', description_en: '', description_ar: '', features: {}, daily_message_limit: null
+});
 
 export default function PlansPage() {
   const qc = useQueryClient();
@@ -55,11 +59,23 @@ export default function PlansPage() {
   const deleteMut = useMutation({
     mutationFn: (key: string) => adminApi.deletePlan(key),
     onSuccess: () => { push({ message:'Plan deleted', type:'success'}); qc.invalidateQueries({queryKey:['plans']}); },
-    onError: () => push({ message:'Delete failed', type:'error'})
   });
-
   function openCreate() { setForm(emptyPlan()); setEditingKey(null); setShowForm(true); }
-  function openEdit(key: string, cfg: any) { setEditingKey(key); setForm({ key, name: (cfg.name || key.charAt(0).toUpperCase()+key.slice(1)), tagline: cfg.tagline || '', name_en: cfg.name_en || '', name_ar: cfg.name_ar || '', tagline_en: cfg.tagline_en || '', tagline_ar: cfg.tagline_ar || '', price_monthly: cfg.price_monthly, monthly_api_quota: cfg.monthly_api_quota, monthly_tokens_quota: cfg.monthly_tokens_quota, trial_days: cfg.trial_days || 0, description: cfg.description || '', description_en: cfg.description_en || '', description_ar: cfg.description_ar || '', features: { ...cfg.features } }); setShowForm(true); }
+  function openEdit(planKey: string, cfg: any) {
+    setEditingKey(planKey);
+    setForm({
+      key: planKey,
+      name: cfg.name || '', tagline: cfg.tagline || '', name_en: cfg.name_en || '', name_ar: cfg.name_ar || '', tagline_en: cfg.tagline_en || '', tagline_ar: cfg.tagline_ar || '',
+      price_monthly: cfg.price_monthly != null ? String(cfg.price_monthly) : '',
+      monthly_api_quota: cfg.monthly_api_quota ?? 0,
+      monthly_tokens_quota: cfg.monthly_tokens_quota ?? 0,
+      trial_days: cfg.trial_days ?? 0,
+      description: cfg.description || '', description_en: cfg.description_en || '', description_ar: cfg.description_ar || '',
+      features: cfg.features || {},
+      daily_message_limit: cfg.daily_message_limit ?? null
+    });
+    setShowForm(true);
+  }
   function submit(e: React.FormEvent) {
     e.preventDefault();
     if (editingKey) {
@@ -71,6 +87,9 @@ export default function PlansPage() {
         const num = Number(data.price_monthly);
         if (!isNaN(num)) data.price_monthly = num; else delete data.price_monthly;
       }
+      if (data.daily_message_limit === '' || data.daily_message_limit === undefined) {
+        delete data.daily_message_limit;
+      }
       updateMut.mutate({ key: editingKey, data });
     } else {
   const payload: any = { ...form, key: form.key.trim().toLowerCase() };
@@ -78,6 +97,9 @@ export default function PlansPage() {
         delete payload.price_monthly;
       } else if (typeof payload.price_monthly === 'string') {
         const num = Number(payload.price_monthly); if (!isNaN(num)) payload.price_monthly = num; else delete payload.price_monthly;
+      }
+      if (payload.daily_message_limit === '' || payload.daily_message_limit === undefined) {
+        delete payload.daily_message_limit;
       }
       createMut.mutate(payload);
     }
@@ -107,7 +129,7 @@ export default function PlansPage() {
           const subtitle = (cfg.tagline ? cfg.tagline : null) || (cfg.description || '');
           return (
             <Card key={name} title={cfg.name || name} subtitle={subtitle} className="relative">
-              <div className="text-2xl font-bold text-brand-600">{cfg.price_monthly ? '$'+cfg.price_monthly : 'Free'}</div>
+              <div className="text-2xl font-bold text-brand-600">{cfg.price_monthly ? 'EGP '+cfg.price_monthly : 'Free'}</div>
               <div className="text-[11px] text-gray-500 mb-2">{cfg.price_monthly? '/month':''}</div>
               <ul className="space-y-1.5 mb-2">
                 {feats.map(([k,v]) => (
@@ -117,9 +139,10 @@ export default function PlansPage() {
                   </li>
                 ))}
               </ul>
-              <div className="grid grid-cols-2 gap-2 text-[10px] mt-auto">
+              <div className="grid grid-cols-3 gap-2 text-[10px] mt-auto">
                 <div className="px-2 py-1 rounded bg-gray-100 text-gray-600">Tokens: {cfg.monthly_tokens_quota ?? '—'}</div>
                 <div className="px-2 py-1 rounded bg-gray-100 text-gray-600">Calls: {cfg.monthly_api_quota ?? '—'}</div>
+                <div className="px-2 py-1 rounded bg-gray-100 text-gray-600">Daily Msg: {cfg.daily_message_limit ?? '∞'}</div>
               </div>
               <div className="absolute top-2 right-2 flex gap-1">
                 <button onClick={()=>openEdit(name, cfg)} className="h-6 px-2 rounded bg-gray-100 text-[10px] hover:bg-brand-50">Edit</button>
@@ -196,8 +219,12 @@ export default function PlansPage() {
                       <input min={0} type="number" value={form.trial_days} onChange={e=>setForm(f=>({...f,trial_days:Number(e.target.value)}))} className="w-full h-10 border rounded-md px-3 text-sm focus:ring-brand-500 focus:border-brand-500" placeholder="0" />
                     </div>
                     <div>
-                      <label className="block text-[11px] font-medium text-gray-600 mb-1 uppercase tracking-wide">Price Monthly (USD)</label>
-                      <input value={form.price_monthly} onChange={e=>setForm(f=>({...f,price_monthly:e.target.value}))} className="w-full h-10 border rounded-md px-3 text-sm focus:ring-brand-500 focus:border-brand-500" placeholder="e.g. 9.99" />
+                      <label className="block text-[11px] font-medium text-gray-600 mb-1 uppercase tracking-wide">Price Monthly (EGP)</label>
+                      <input value={form.price_monthly} onChange={e=>setForm(f=>({...f,price_monthly:e.target.value}))} className="w-full h-10 border rounded-md px-3 text-sm focus:ring-brand-500 focus:border-brand-500" placeholder="e.g. 200" />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-medium text-gray-600 mb-1 uppercase tracking-wide">Daily Message Limit (blank = unlimited)</label>
+                      <input type="number" min={0} value={form.daily_message_limit ?? ''} onChange={e=>{ const val = e.target.value; setForm(f=>({...f,daily_message_limit: val === '' ? null : Number(val)})); }} className="w-full h-10 border rounded-md px-3 text-sm focus:ring-brand-500 focus:border-brand-500" placeholder="50" />
                     </div>
                   </div>
                   <div className="grid gap-4 md:grid-cols-2">
@@ -222,7 +249,7 @@ export default function PlansPage() {
                   </div>
                   <div className="border rounded-lg p-3 h-[320px] overflow-y-auto bg-gray-50/60">
                     <div className="grid gap-2">
-                      {['chat','forms_generation','legal_analysis','advanced_search','document_parsing','priority_support'].map(feat => {
+                      {['chat','forms_generation','legal_analysis','advanced_search','document_parsing','priority_support','printing'].map(feat => {
                         const enabled = !!form.features[feat];
                         return (
                           <label key={feat} className={`flex items-center justify-between gap-3 text-xs font-medium rounded-md px-3 py-2 bg-white border ${enabled? 'border-brand-300 shadow-sm':'border-gray-200'} hover:border-brand-400 transition`}>

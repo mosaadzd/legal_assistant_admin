@@ -1,5 +1,5 @@
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
-import { BarChart3, Users, Layers, ShieldCheck, FileText, Moon, Sun, Search } from 'lucide-react';
+import { BarChart3, Users, Layers, ShieldCheck, FileText, Moon, Sun, Search, CreditCard } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -8,7 +8,10 @@ const baseNavItems = [
   { to: '/users', label: 'Users', icon: Users, match: (p: string) => p.startsWith('/users'), roles: ['admin'] },
   { to: '/plans', label: 'Plans & Pricing', icon: Layers, match: (p: string) => p.startsWith('/plans'), roles: ['admin'] },
   { to: '/roles', label: 'Roles', icon: ShieldCheck, match: (p: string) => p.startsWith('/roles'), roles: ['admin'] },
-  { to: '/audit', label: 'Audit Logs', icon: FileText, match: (p: string) => p.startsWith('/audit'), roles: ['admin'] }
+  { to: '/audit', label: 'Audit Logs', icon: FileText, match: (p: string) => p.startsWith('/audit'), roles: ['admin'] },
+  // Payments nav groups both pending attempts & revenue analytics (child route /payments/revenue)
+  { to: '/payments', label: 'Payments', icon: CreditCard, match: (p: string) => p.startsWith('/payments'), roles: ['admin'] },
+  { to: '/paymob', label: 'PayMob Config', icon: CreditCard, match: (p: string) => p.startsWith('/paymob'), roles: ['admin'] }
 ];
 
 export default function DashboardLayout() {

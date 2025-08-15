@@ -45,6 +45,8 @@ export default function UserDetailPage() {
     api_calls_used: number;
     tokens_used: number;
     prompt_tokens_used: number; output_tokens_used: number; thoughts_tokens_used: number; cached_tokens_used: number; last_model_used?: string;
+  phone_number?: string; billing_city?: string; billing_country?: string; billing_address_line1?: string;
+  daily_message_limit?: number; daily_messages_used?: number;
   }
   const detailQ = useQuery<UserDetail>({ enabled: !!id, queryKey: ['user-detail', id], queryFn: () => adminApi.userDetail(id!) });
   useEffect(()=>{
@@ -116,6 +118,9 @@ export default function UserDetailPage() {
                   <li><span className="font-semibold">Billing Cycle Start:</span> {detailQ.data.billing_cycle_start ? new Date(detailQ.data.billing_cycle_start).toLocaleDateString(): ''}</li>
                   <li><span className="font-semibold">API Calls Used:</span> {detailQ.data.api_calls_used}</li>
                   <li><span className="font-semibold">Tokens Used:</span> {detailQ.data.tokens_used}</li>
+                  {typeof detailQ.data.daily_message_limit !== 'undefined' && (
+                    <li><span className="font-semibold">Daily Messages:</span> {detailQ.data.daily_messages_used ?? 0} / {detailQ.data.daily_message_limit ?? '—'}</li>
+                  )}
                 </ul>
               )}
             </div>
@@ -129,6 +134,23 @@ export default function UserDetailPage() {
                   <li><span className="font-semibold">Cached:</span> {detailQ.data.cached_tokens_used}</li>
                   <li><span className="font-semibold">Last Model:</span> {detailQ.data.last_model_used || '—'}</li>
                 </ul>
+              )}
+              {detailQ.data && detailQ.data.daily_message_limit && (
+                <div className="mt-3">
+                  <div className="h-2 rounded bg-gray-100 overflow-hidden">
+                    <div className={`h-full transition-all ${((detailQ.data.daily_messages_used||0)/(detailQ.data.daily_message_limit||1))>0.9? 'bg-red-500': ((detailQ.data.daily_messages_used||0)/(detailQ.data.daily_message_limit||1))>0.75? 'bg-orange-400':'bg-emerald-500'}`} style={{width: `${Math.min(100, ((detailQ.data.daily_messages_used||0)/(detailQ.data.daily_message_limit||1))*100).toFixed(1)}%`}} />
+                  </div>
+                  <div className="text-[10px] mt-1 text-gray-600">Daily messages used</div>
+                </div>
+              )}
+            </div>
+            {/* Billing / Contact Info */}
+            <div className="bg-white border rounded-lg p-4 space-y-2 md:col-span-2">
+              <h3 className="font-medium text-sm text-gray-700">Billing / Contact</h3>
+              {detailQ.data ? (
+                <BillingEditor user={detailQ.data} userId={id!} onSaved={()=> qc.invalidateQueries({ queryKey:['user-detail', id]})} />
+              ) : (
+                <div className="text-xs text-gray-500">Loading...</div>
               )}
             </div>
           </div>
@@ -542,6 +564,50 @@ export default function UserDetailPage() {
             </div>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+// Lightweight billing editor (inline component)
+import React from 'react';
+function BillingEditor({ user, userId, onSaved }: { user: any; userId: string; onSaved: () => void }) {
+  const { push: pushToast } = useToast();
+  const qc = useQueryClient();
+  const [phone, setPhone] = useState(user.phone_number || '');
+  const [city, setCity] = useState(user.billing_city || '');
+  const [country, setCountry] = useState((user.billing_country || '').toUpperCase());
+  const [address, setAddress] = useState(user.billing_address_line1 || '');
+  const mut = useMutation({
+    mutationFn: async () => {
+      await adminApi.updateUserBilling(userId, { phone_number: phone||null, billing_city: city||null, billing_country: country||null, billing_address_line1: address||null });
+    },
+    onSuccess: () => { pushToast({ type:'success', message:'Billing updated'}); onSaved(); },
+    onError: () => pushToast({ type:'error', message:'Failed to update billing'})
+  });
+  return (
+    <div className="space-y-3 text-xs">
+      <div className="grid sm:grid-cols-2 md:grid-cols-4 gap-3">
+        <div>
+          <label className="block text-[10px] uppercase tracking-wide text-gray-500">Phone</label>
+          <input value={phone} onChange={e=>setPhone(e.target.value)} className="h-8 w-full border rounded px-2" placeholder="+201234..." />
+        </div>
+        <div>
+          <label className="block text-[10px] uppercase tracking-wide text-gray-500">City</label>
+          <input value={city} onChange={e=>setCity(e.target.value)} className="h-8 w-full border rounded px-2" />
+        </div>
+        <div>
+          <label className="block text-[10px] uppercase tracking-wide text-gray-500">Country</label>
+          <input value={country} onChange={e=>setCountry(e.target.value.toUpperCase())} maxLength={2} className="h-8 w-full border rounded px-2" placeholder="EG" />
+        </div>
+        <div className="md:col-span-1 sm:col-span-2">
+          <label className="block text-[10px] uppercase tracking-wide text-gray-500">Address Line 1</label>
+          <input value={address} onChange={e=>setAddress(e.target.value)} className="h-8 w-full border rounded px-2" />
+        </div>
+      </div>
+      <div className="flex items-center gap-2">
+        <button onClick={()=>mut.mutate()} disabled={mut.isPending} className="h-8 px-4 rounded bg-brand-600 text-white text-xs disabled:opacity-40">{mut.isPending? 'Saving...':'Save Billing'}</button>
+        <button onClick={()=>{ setPhone(user.phone_number||''); setCity(user.billing_city||''); setCountry((user.billing_country||'').toUpperCase()); setAddress(user.billing_address_line1||''); }} className="h-8 px-3 rounded border text-xs">Reset</button>
       </div>
     </div>
   );

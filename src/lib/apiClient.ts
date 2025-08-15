@@ -96,6 +96,10 @@ export const adminApi = {
     const { data } = await api.patch(`/admin/users/${id}/roles`, { roles });
     return data;
   },
+  async updateUserBilling(id: string, payload: { phone_number?: string|null; billing_city?: string|null; billing_country?: string|null; billing_address_line1?: string|null }) {
+    const { data } = await api.patch(`/admin/users/${id}/billing`, payload);
+    return data;
+  },
   async userChatSessions(id: string, params: { limit?: number; offset?: number }) {
     const { data } = await api.get(`/admin/users/${id}/chat/sessions`, { params });
     return data as any[];
@@ -148,5 +152,41 @@ export const adminApi = {
       }
       throw e;
     }
+  },
+  async pendingPayments(params: { status?: string; user_search?: string; limit?: number; offset?: number }) {
+    const { data } = await api.get('/admin/payments/pending', { params });
+    return data as { items: any[]; total: number };
+  },
+  async pendingPaymentDetail(id: string) {
+    const { data } = await api.get(`/admin/payments/pending/${id}`);
+    return data as any;
+  },
+  async checkPendingOrder(order_id: number) {
+    const { data } = await api.post(`/admin/payments/pending/${order_id}/check`, {});
+    return data as any;
+  },
+  async checkAllPending(limit: number = 50) {
+    const { data } = await api.post('/admin/payments/pending/check-all', { limit });
+    return data as any;
+  },
+  async revenueSummary(days: number, group_by: 'day' | 'plan' | 'day_plan' = 'day') {
+    const { data } = await api.get('/admin/payments/revenue/summary', { params: { days, group_by } });
+    return data as any;
+  },
+  async revenueAverage(days: number) {
+    const { data } = await api.get('/admin/payments/revenue/average', { params: { days } });
+    return data as any;
+  },
+  async revenueCumulative(days: number) {
+    const { data } = await api.get('/admin/payments/revenue/cumulative', { params: { days } });
+    return data as any;
+  },
+  async getPaymobConfig() {
+    const { data } = await api.get('/admin/paymob/config');
+    return data as any;
+  },
+  async updatePaymobConfig(payload: { api_key?: string; integration_id?: string; iframe_id?: string; hmac_secret?: string }) {
+    const { data } = await api.post('/admin/paymob/config', payload);
+    return data as any;
   }
 };

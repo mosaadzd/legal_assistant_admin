@@ -9,6 +9,10 @@ import UsageAnalyticsPage from './pages/analytics/UsageAnalyticsPage';
 import DashboardHome from './pages/dashboard/DashboardHome';
 import RolesPage from './pages/roles/RolesPage';
 import AuditLogsPage from './pages/audit/AuditLogsPage';
+import PendingPaymentsPage from './pages/payments/PendingPaymentsPage';
+import RevenueAnalyticsPage from './pages/payments/RevenueAnalyticsPage';
+import PaymentDetailPage from './pages/payments/PaymentDetailPage';
+import PaymobConfigPage from './pages/PaymobConfigPage';
 
 function Protected({ children }: { children: JSX.Element }) {
   const { loading, authenticated } = useAuth();
@@ -38,6 +42,10 @@ export default function App() {
         <Route path="plans" element={<AdminOnly><PlansPage /></AdminOnly>} />
         <Route path="roles" element={<AdminOnly><RolesPage /></AdminOnly>} />
         <Route path="audit" element={<AdminOnly><AuditLogsPage /></AdminOnly>} />
+  <Route path="payments" element={<AdminOnly><PendingPaymentsPage /></AdminOnly>} />
+  <Route path="payments/pending/:id" element={<AdminOnly><PaymentDetailPage /></AdminOnly>} />
+  <Route path="payments/revenue" element={<AdminOnly><RevenueAnalyticsPage /></AdminOnly>} />
+  <Route path="paymob" element={<AdminOnly><PaymobConfigPage /></AdminOnly>} />
       </Route>
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
